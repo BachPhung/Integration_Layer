@@ -1,0 +1,31 @@
+POST http://localhost:4000/api/integration
+Content-Type: application/json
+
+{
+  "extOrderId": "bda73cd4-30a0-bd0b-2bc3c907be47",
+  "type": "from", 
+  "fromLocation": "Porvoo"
+}
+
+###
+
+POST http://localhost:4000/api/integration
+Content-Type: application/json
+
+{
+  "extOrderId": "bda73cd4-30a0-bd0b-2bc3c907be47",
+  "type": "to", 
+  "toLocation": "Kokkola"
+}
+
+###
+
+POST http://localhost:4000/api/integration
+Content-Type: application/json
+
+{
+  "extOrderId": "bda73cd4-30a0-bd0b-2bc3c907be47",
+  "type": "cargo", 
+  "cargoType": "Pasta",
+  "cargoAmount": "100"
+}
