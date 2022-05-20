@@ -87,9 +87,7 @@ const addOrder = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
                     if (fromOrderExisted && toOrderExisted && newOrder) {
                         const readyOrder = (0, formatOrder_1.formatOrder)(fromOrderExisted, toOrderExisted, newOrder);
                         console.log("Calling POST REQUEST");
-                        yield (0, requestMethod_1.requestMethod)(SeaberURL, readyOrder)
-                            .then(() => res.status(400).json("Success"))
-                            .catch(err => res.status(503).json(err));
+                        yield (0, requestMethod_1.requestMethod)(SeaberURL, readyOrder);
                     }
                     break;
                 }

@@ -83,10 +83,7 @@ export const addOrder = async (req: Request, res: Response) => {
           if (fromOrderExisted && toOrderExisted && newOrder) {
             const readyOrder = formatOrder(fromOrderExisted, toOrderExisted, newOrder);
             console.log("Calling POST REQUEST");
-            
             await requestMethod(SeaberURL, readyOrder)
-              .then(()=>res.status(400).json("Success"))
-              .catch(err=>res.status(503).json(err))
           }
           break;
         }
