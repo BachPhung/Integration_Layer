@@ -19,7 +19,8 @@ const FromOrder_1 = __importDefault(require("../models/FromOrder"));
 const ToOrder_1 = __importDefault(require("../models/ToOrder"));
 const axios_1 = __importDefault(require("axios"));
 const formatOrder_1 = require("../util/formatOrder");
-/*
+const requestMethod_1 = require("../util/requestMethod");
+/* STABILITY
 *Advantage of implementing integration layer
   -> Have a separate layer that the requests from the external system without compromising the Seaber
      internal system. Seaber system can be protected from DDoS or malwares.
@@ -29,25 +30,25 @@ const formatOrder_1 = require("../util/formatOrder");
 */
 const addOrder = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        let body = req.body;
-        let typeReq = body.type;
-        let orderIdReq = body.extOrderId;
+        const body = req.body;
+        const typeReq = body.type;
+        const orderIdReq = body.extOrderId;
+        const SeaberURL = 'https://seaber-system.com'; // FAKE ADDRESS
         let newOrder;
-        const SeaberURL = '';
         if (!(!!(req.body.fromLocation || req.body.toLocation || (req.body.cargoType && req.body.cargoAmount)))) {
             throw new Error("Wrong message");
         }
         if (typeReq && orderIdReq) {
             // Check existed types of order
             //TODO 1: FETCH TYPES FROM DATABASE
-            let fetchFromOrder = integration_1.default.findAllFromOrder();
-            let fetchToOrder = integration_1.default.findAllToOrder();
-            let fetchCargoOrder = integration_1.default.findAllCargoOrder();
+            let fetchFromOrder = yield integration_1.default.findAllFromOrder();
+            let fetchToOrder = yield integration_1.default.findAllToOrder();
+            let fetchCargoOrder = yield integration_1.default.findAllCargoOrder();
             yield Promise.all([fetchCargoOrder, fetchFromOrder, fetchToOrder]);
             //TODO 2: CHECK AVAILABILITY
-            let fromOrderExisted = (yield fetchFromOrder).find(order => order.extOrderId === orderIdReq);
-            let toOrderExisted = (yield fetchToOrder).find(order => order.extOrderId === orderIdReq);
-            let cargoOrderExisted = (yield fetchCargoOrder).find(order => order.extOrderId === orderIdReq);
+            let toOrderExisted = (fetchToOrder).find(order => order.extOrderId === orderIdReq);
+            let fromOrderExisted = (fetchFromOrder).find(order => order.extOrderId == orderIdReq);
+            let cargoOrderExisted = (fetchCargoOrder).find(order => order.extOrderId === orderIdReq);
             switch (typeReq) {
                 case 'from': {
                     // IF: Messages from External System are duplicated
@@ -61,7 +62,7 @@ const addOrder = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
                     if (toOrderExisted && cargoOrderExisted && newOrder) {
                         // Ready -> Send POST request to Seaber
                         const readyOrder = (0, formatOrder_1.formatOrder)(newOrder, toOrderExisted, cargoOrderExisted);
-                        yield axios_1.default.post(SeaberURL, readyOrder).finally(() => console.log("Sent request to Seaber server"));
+                        yield (0, requestMethod_1.requestMethod)(SeaberURL, readyOrder);
                     }
                     break;
                 }
@@ -70,20 +71,25 @@ const addOrder = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
                         ? res.status(400).json("Existed message")
                         : (newOrder = yield integration_1.default.create(new ToOrder_1.default(body)));
                     if (fromOrderExisted && cargoOrderExisted && newOrder) {
-                        // Ready -> Send POST request to Seaber
                         const readyOrder = (0, formatOrder_1.formatOrder)(fromOrderExisted, newOrder, cargoOrderExisted);
-                        yield axios_1.default.post(SeaberURL, readyOrder).finally(() => console.log("Sent request to Seaber server"));
+                        yield (0, requestMethod_1.requestMethod)(SeaberURL, readyOrder);
                     }
                     break;
                 }
                 case 'cargo': {
+                    console.log("Cargo");
                     cargoOrderExisted
                         ? res.status(400).json("Existed message")
                         : (newOrder = yield integration_1.default.create(new CargoOrder_1.default(body)));
+                    console.log("check fromOrder", fromOrderExisted);
+                    console.log("check toOrder", toOrderExisted);
+                    console.log("check newOrder", newOrder);
                     if (fromOrderExisted && toOrderExisted && newOrder) {
-                        // Ready -> Send POST request to Seaber
                         const readyOrder = (0, formatOrder_1.formatOrder)(fromOrderExisted, toOrderExisted, newOrder);
-                        yield axios_1.default.post(SeaberURL, readyOrder).finally(() => console.log("Sent request to Seaber server"));
+                        console.log("Calling POST REQUEST");
+                        yield (0, requestMethod_1.requestMethod)(SeaberURL, readyOrder)
+                            .then(() => res.status(400).json("Success"))
+                            .catch(err => res.status(503).json(err));
                     }
                     break;
                 }
@@ -98,12 +104,11 @@ const addOrder = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
         }
     }
     catch (err) {
-        if (err instanceof Error) {
-            res.status(400).json(err.message);
+        if (axios_1.default.isAxiosError(err)) {
+            res.status(503).json(err.config.timeoutErrorMessage || err.message);
         }
-        else if (axios_1.default.isAxiosError(err)) {
-            //  IF: The Seaber API goes down. Send reponse to external client with sensible error messages
-            res.status(503).json('The Seaber server doesnot response. Please fix it');
+        else if (err instanceof Error) {
+            res.status(400).json(err.message);
         }
     }
 });

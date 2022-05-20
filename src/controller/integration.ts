@@ -5,8 +5,9 @@ import FromOrder, { FromOrderDocument } from '../models/FromOrder'
 import ToOrder, { ToOrderDocument } from '../models/ToOrder'
 import axios from 'axios'
 import { formatOrder } from '../util/formatOrder'
+import { requestMethod } from '../util/requestMethod'
 
-/*
+/* STABILITY
 *Advantage of implementing integration layer
   -> Have a separate layer that the requests from the external system without compromising the Seaber
      internal system. Seaber system can be protected from DDoS or malwares.
@@ -16,12 +17,13 @@ import { formatOrder } from '../util/formatOrder'
 */
 export const addOrder = async (req: Request, res: Response) => {
   try {
-    let body: FromOrderDocument | ToOrderDocument | CargoOrderDocument = req.body
-    let typeReq: string = body.type;
-    let orderIdReq: string = body.extOrderId;
+    const body: FromOrderDocument | ToOrderDocument | CargoOrderDocument = req.body
+    const typeReq: string = body.type;
+    const orderIdReq: string = body.extOrderId;
+    const SeaberURL = 'https://seaber-system.com' // FAKE ADDRESS
+
     let newOrder: any;
-    const SeaberURL = ''
-    
+
     if (!(!!(req.body.fromLocation || req.body.toLocation || (req.body.cargoType && req.body.cargoAmount)))) {
       throw new Error("Wrong message")
     }
@@ -29,14 +31,15 @@ export const addOrder = async (req: Request, res: Response) => {
     if (typeReq && orderIdReq) {
       // Check existed types of order
       //TODO 1: FETCH TYPES FROM DATABASE
-      let fetchFromOrder = OrderServ.findAllFromOrder();
-      let fetchToOrder = OrderServ.findAllToOrder();
-      let fetchCargoOrder = OrderServ.findAllCargoOrder();
+      let fetchFromOrder = await OrderServ.findAllFromOrder();
+      let fetchToOrder = await OrderServ.findAllToOrder();
+      let fetchCargoOrder = await OrderServ.findAllCargoOrder();
+      
       await Promise.all([fetchCargoOrder, fetchFromOrder, fetchToOrder]);
       //TODO 2: CHECK AVAILABILITY
-      let fromOrderExisted = (await fetchFromOrder).find(order => order.extOrderId === orderIdReq);
-      let toOrderExisted = (await fetchToOrder).find(order => order.extOrderId === orderIdReq);
-      let cargoOrderExisted = (await fetchCargoOrder).find(order => order.extOrderId === orderIdReq);
+      let toOrderExisted = (fetchToOrder).find(order => order.extOrderId === orderIdReq);
+      let fromOrderExisted = (fetchFromOrder).find(order => order.extOrderId == orderIdReq);
+      let cargoOrderExisted = (fetchCargoOrder).find(order => order.extOrderId === orderIdReq);
 
       switch (typeReq) {
         case 'from': {
@@ -52,7 +55,7 @@ export const addOrder = async (req: Request, res: Response) => {
           if (toOrderExisted && cargoOrderExisted && newOrder) {
             // Ready -> Send POST request to Seaber
             const readyOrder = formatOrder(newOrder, toOrderExisted, cargoOrderExisted);
-            await axios.post(SeaberURL, readyOrder).finally(() => console.log("Sent request to Seaber server"));
+            await requestMethod(SeaberURL, readyOrder)
           }
           break;
         }
@@ -61,20 +64,29 @@ export const addOrder = async (req: Request, res: Response) => {
             ? res.status(400).json("Existed message")
             : (newOrder = await OrderServ.create(new ToOrder(body)))
           if (fromOrderExisted && cargoOrderExisted && newOrder) {
-            // Ready -> Send POST request to Seaber
             const readyOrder = formatOrder(fromOrderExisted, newOrder, cargoOrderExisted);
-            await axios.post(SeaberURL, readyOrder).finally(() => console.log("Sent request to Seaber server"));
+            await requestMethod(SeaberURL, readyOrder)
           }
           break;
         }
         case 'cargo': {
+          console.log("Cargo");
+          
           cargoOrderExisted
             ? res.status(400).json("Existed message")
             : (newOrder = await OrderServ.create(new CargoOrder(body)))
+          console.log("check fromOrder", fromOrderExisted);
+          console.log("check toOrder", toOrderExisted);
+          console.log("check newOrder", newOrder);
+          
+          
           if (fromOrderExisted && toOrderExisted && newOrder) {
-            // Ready -> Send POST request to Seaber
             const readyOrder = formatOrder(fromOrderExisted, toOrderExisted, newOrder);
-            await axios.post(SeaberURL, readyOrder).finally(() => console.log("Sent request to Seaber server"));
+            console.log("Calling POST REQUEST");
+            
+            await requestMethod(SeaberURL, readyOrder)
+              .then(()=>res.status(400).json("Success"))
+              .catch(err=>res.status(503).json(err))
           }
           break;
         }
@@ -89,10 +101,9 @@ export const addOrder = async (req: Request, res: Response) => {
     }
   }
   catch (err: any) {
-    if (err instanceof Error) { res.status(400).json(err.message) }
-    else if (axios.isAxiosError(err)) {
-      //  IF: The Seaber API goes down. Send reponse to external client with sensible error messages
-      res.status(503).json('The Seaber server doesnot response. Please fix it')
+    if (axios.isAxiosError(err)) {
+      res.status(503).json(err.config.timeoutErrorMessage || err.message)
     }
+    else if (err instanceof Error) { res.status(400).json(err.message) }
   }
 }

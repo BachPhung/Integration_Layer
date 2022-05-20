@@ -13,9 +13,9 @@ var __rest = (this && this.__rest) || function (s, e) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.formatOrder = void 0;
 const formatOrder = (req1, req2, req3) => {
-    let { extOrderId, fromLocation } = req1, rest1 = __rest(req1, ["extOrderId", "fromLocation"]);
-    let { toLocation } = req2, rest2 = __rest(req2, ["toLocation"]);
-    let { cargoType, cargoAmount } = req3, rest3 = __rest(req3, ["cargoType", "cargoAmount"]);
+    const { extOrderId, fromLocation } = req1, rest1 = __rest(req1, ["extOrderId", "fromLocation"]);
+    const { toLocation } = req2, rest2 = __rest(req2, ["toLocation"]);
+    const { cargoType, cargoAmount } = req3, rest3 = __rest(req3, ["cargoType", "cargoAmount"]);
     return { extOrderId, fromLocation, toLocation, cargoType, cargoAmount };
 };
 exports.formatOrder = formatOrder;
